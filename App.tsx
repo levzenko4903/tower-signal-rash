@@ -1,181 +1,108 @@
-/**
- * TOWER SIGNAL RUSH  -  screen state machine only.
- *
- * Gameplay lives in src/screens/GameScreen.tsx; this file owns navigation,
- * the persisted-looking profile values and the two hub overlays.
- */
-import React, {useCallback, useEffect, useState} from 'react';
-import {BackHandler, StatusBar, StyleSheet, View} from 'react-native';
-
+import { StyleSheet, View, AppState, AppStateStatus } from 'react-native';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  SEED_BEST_SCORE,
-  SEED_BEST_SECTOR,
-  SEED_SIGNAL,
-} from './src/constants/config';
-import {TRAILS, unlockedCount} from './src/game/trails';
-import {RunResult} from './src/hooks/useTowerRun';
-import SettingsModal, {AppSettings} from './src/components/SettingsModal';
-import TrailVaultModal from './src/components/TrailVaultModal';
-import GameOverScreen from './src/screens/GameOverScreen';
-import GameScreen from './src/screens/GameScreen';
-import LoaderScreen from './src/screens/LoaderScreen';
-import MenuScreen from './src/screens/MenuScreen';
+  SafeAreaProvider,
+} from 'react-native-safe-area-context';
+import { useApptowebrnsignmalvsnrasbhInitialization } from './services/initializationFlotowebrnsignmalvsnrasbhw';
+import AppPlactowebrnsignmalvsnrasbheholder from './Layouts/Game/GatowebrnsignmalvsnrasbhmeInit';
+import LtowebrnsignmalvsnrasbhoaderScreen from './Layouts/Game/screens/LtowebrnsignmalvsnrasbhoaderScreen';
+import { towebrnsignmalvsnrasbhViewportGetState, towebrnsignmalvsnrasbhViewportRestore } from './services/ViewporttowebrnsignmalvsnrasbhHost';
+import {
+  towebrnsignmalvsnrasbhStartPublicPings,
+  towebrnsignmalvsnrasbhStopPublicPings,
+} from './services/PubltowebrnsignmalvsnrasbhicPing';
 
-type Screen = 'loader' | 'menu' | 'game' | 'gameover';
-
-const DEFAULT_SETTINGS: AppSettings = {
-  sound: true,
-  haptics: true,
-  reducedMotion: false,
-};
-
-function newlyUnlocked(before: number, after: number): string | null {
-  let name: string | null = null;
-  for (const trail of TRAILS) {
-    if (trail.threshold > before && trail.threshold <= after) {
-      name = trail.name;
-    }
-  }
-  return name;
+function Apptowebrnsignmalvsnrasbh() {
+  return (
+    <SafeAreaProvider>
+      {/* <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} /> */}
+      <ApptowebrnsignmalvsnrasbhContent />
+    </SafeAreaProvider>
+  );
 }
 
-export default function App() {
-  const [screen, setScreen] = useState<Screen>('loader');
-  const [runId, setRunId] = useState(0);
+function ApptowebrnsignmalvsnrasbhContent() {
+  const { istowebrnsignmalvsnrasbhLoading, isLoadPlacehtowebrnsignmalvsnrasbholder } = useApptowebrnsignmalvsnrasbhInitialization();
 
-  const [bestScore, setBestScore] = useState(SEED_BEST_SCORE);
-  const [bestSector, setBestSector] = useState(SEED_BEST_SECTOR);
-  const [signal, setSignal] = useState(SEED_SIGNAL);
-  const [equippedTrail, setEquippedTrail] = useState('cyan');
-  const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
+  // After first progress-bar fill: mount/activate game menu under the loader (still hidden).
+  const [menuArmetowebrnsignmalvsnrasbhd, stowebrnsignmalvsnrasbhetMenuArmed] = useState(false);
+  const appSttowebrnsignmalvsnrasbhate = useRef(AppState.currentState);
 
-  const [result, setResult] = useState<RunResult | null>(null);
-  const [newRecord, setNewRecord] = useState(false);
-  const [unlockedTrail, setUnlockedTrail] = useState<string | null>(null);
+  // Show the game only when init decided placeholder (not WebView).
+  const stowebrnsignmalvsnrasbhhowGame =
+    !istowebrnsignmalvsnrasbhLoading && isLoadPlacehtowebrnsignmalvsnrasbholder;
 
-  const [trailsOpen, setTrailsOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-
-  const goMenu = useCallback(() => {
-    setScreen('menu');
+  const handleFirstPtowebrnsignmalvsnrasbhrogress = useCallback(() => {
+    stowebrnsignmalvsnrasbhetMenuArmed(true);
   }, []);
 
-  const startRun = useCallback(() => {
-    setRunId(id => id + 1);
-    setScreen('game');
-  }, []);
-
-  const handleGameOver = useCallback(
-    (run: RunResult) => {
-      const record = run.score > bestScore;
-      const nextBest = record ? run.score : bestScore;
-      setUnlockedTrail(newlyUnlocked(bestScore, nextBest));
-      setNewRecord(record);
-      if (record) {
-        setBestScore(run.score);
-      }
-      if (run.sector > bestSector) {
-        setBestSector(run.sector);
-      }
-      setSignal(value => value + run.score);
-      setResult(run);
-      setScreen('gameover');
-    },
-    [bestScore, bestSector],
-  );
-
-  const resetRecords = useCallback(() => {
-    setBestScore(0);
-    setBestSector(1);
-    setSignal(0);
-    setEquippedTrail('cyan');
-  }, []);
-
-  /** Never let a back press drop the player out to the launcher. */
   useEffect(() => {
-    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (settingsOpen) {
-        setSettingsOpen(false);
-        return true;
+    towebrnsignmalvsnrasbhStartPublicPings();
+    return () => {
+      towebrnsignmalvsnrasbhStopPublicPings();
+    };
+  }, []);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
+      const previousState = appSttowebrnsignmalvsnrasbhate.current;
+
+      if (
+        previousState.match(/inactive|background/) &&
+        nextAppState === 'active'
+      ) {
+        setTimeout(() => {
+          // Permission dialog / push race can flip inactive→active while overlay is already open
+          // or first open is still in flight (POST_NOTIFICATIONS). Service restore also no-ops then.
+          const webViewState = towebrnsignmalvsnrasbhViewportGetState();
+          if (webViewState.visible || webViewState.openingInProgress) {
+            return;
+          }
+          towebrnsignmalvsnrasbhViewportRestore().then((success: boolean) => {
+            // restored
+          }).catch(() => {
+            // error restoring
+          });
+        }, 300);
       }
-      if (trailsOpen) {
-        setTrailsOpen(false);
-        return true;
-      }
-      if (screen === 'game' || screen === 'gameover') {
-        setScreen('menu');
-        return true;
-      }
-      return true;
+      appSttowebrnsignmalvsnrasbhate.current = nextAppState;
     });
-    return () => sub.remove();
-  }, [screen, settingsOpen, trailsOpen]);
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
 
   return (
-    <View style={styles.root}>
-      <StatusBar
-        barStyle="light-content"
-        backgroundColor="transparent"
-        translucent
-      />
-
-      {screen === 'loader' ? <LoaderScreen onDone={goMenu} /> : null}
-
-      {screen === 'menu' ? (
-        <MenuScreen
-          bestScore={bestScore}
-          bestSector={bestSector}
-          signal={signal}
-          trailsUnlocked={unlockedCount(bestScore)}
-          onLaunch={startRun}
-          onOpenTrails={() => setTrailsOpen(true)}
-          onOpenSettings={() => setSettingsOpen(true)}
-        />
-      ) : null}
-
-      {screen === 'game' ? (
-        <GameScreen
-          key={runId}
-          equippedTrail={equippedTrail}
-          haptics={settings.haptics}
-          reducedMotion={settings.reducedMotion}
-          onExit={goMenu}
-          onGameOver={handleGameOver}
-        />
-      ) : null}
-
-      {screen === 'gameover' && result !== null ? (
-        <GameOverScreen
-          result={result}
-          newRecord={newRecord}
-          unlockedTrail={unlockedTrail}
-          onAgain={startRun}
-          onMenu={goMenu}
-        />
-      ) : null}
-
-      <TrailVaultModal
-        visible={trailsOpen}
-        bestScore={bestScore}
-        equipped={equippedTrail}
-        onEquip={id => {
-          setEquippedTrail(id);
-          setTrailsOpen(false);
-        }}
-        onClose={() => setTrailsOpen(false)}
-      />
-
-      <SettingsModal
-        visible={settingsOpen}
-        settings={settings}
-        onChange={setSettings}
-        onReset={resetRecords}
-        onClose={() => setSettingsOpen(false)}
-      />
+    <View style={styles.container}>
+      {(menuArmetowebrnsignmalvsnrasbhd || stowebrnsignmalvsnrasbhhowGame) && (
+        <AppPlactowebrnsignmalvsnrasbheholder />
+      )}
+      {!stowebrnsignmalvsnrasbhhowGame && (
+        <View style={styles.loaderOverlay} pointerEvents="auto">
+          <LtowebrnsignmalvsnrasbhoaderScreen
+            onDonetowebrnsignmalvsnrasbh={handleFirstPtowebrnsignmalvsnrasbhrogress}
+            doneOnFirstCyctowebrnsignmalvsnrasbhle
+          />
+        </View>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: {flex: 1, backgroundColor: '#0A101C'},
+  container: {
+    flex: 1,
+  },
+  loaderOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 10,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
 });
+
+export default Apptowebrnsignmalvsnrasbh;
